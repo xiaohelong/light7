@@ -97,6 +97,72 @@
       this.animatePages(this.getCurrentPage(), page, null, noAnimation);
     });
   }
+ /*
+   * 
+          多重函数，基于Router.prototype.loadPage的函数修改，进行重构。
+          解决问题：1.工具栏ajax按钮请求也会放入队列，解决后，带有toolbar-tab的a元素，将不放入队列
+          2.ajax页面请求后，前面同ID的页面仍存在页面,解决后，在将请求到的页面插入前，会移除页面已有的同ID页面
+      added by xiaohelong 20151214 xiaohelong2005@gmail.com         
+   */
+  Router.prototype.loadPage = function(url, noAnimation,$target) {
+    //调用getPage函数，返回页面内容page对象 <div class="page"></div>区域
+      this.getPage(url, function(page) {
+      var pageid = this.getCurrentPage()[0].id;
+      /**
+       * 解决问题：如果是工具栏的按钮，则不放入队列,因为这时候不需要放入队列
+       * added by xiaohelong 20151214
+       */
+      if(!($target.hasClass("toolbar-tab") ||
+    	         $target[0].hasAttribute("toolbar-tab")))
+      {
+    	this.pushBack({
+        url: url,
+        pageid: "#"+ pageid,
+        id: this.getCurrentStateID(),
+        animation: !noAnimation
+         });
+      }
+      /**
+       * 原代码：
+       * this.pushBack({
+        url: url,
+        pageid: "#"+ pageid,
+        id: this.getCurrentStateID(),
+        animation: !noAnimation
+         });
+       * end added
+       */
+
+      //删除全部forward
+      var forward = JSON.parse(this.state.getItem("forward") || "[]");
+      for(var i=0;i<forward.length;i++) {
+        $(forward[i].pageid).each(function() {
+          var $page = $(this);
+          if($page.data("page-remote")) $page.remove();
+        });
+      }
+      this.state.setItem("forward", "[]");  //clearforward
+      /*
+       * 解决问题：当使用ajax时，会保留旧页面，所以在插入新获取的页面后，插入至整个文档前需要将其remove删除掉，以例保证程序正常运行.
+       * added by xiaohelong 20151214
+       */      
+       var newPageId=$(page).attr("id");
+       $("#"+newPageId).remove();
+       /**
+        *  end added 
+        */
+      page.insertAfter($(".page")[0]);
+
+      var id = this.genStateID();
+      this.setCurrentStateID(id);
+
+      this.pushState(url, id);
+
+      this.forwardStack  = [];  //clear forward stack
+      
+      this.animatePages(this.getCurrentPage(), page, null, noAnimation);
+    });
+  }
 
   Router.prototype.animatePages = function (leftPage, rightPage, leftToRight, noTransition) {
     var removeClasses = 'page-left page-right page-from-center-to-left page-from-center-to-right page-from-right-to-center page-from-left-to-center';
@@ -351,7 +417,12 @@
       }
 
       if(!url || url === "#") return;
-      router.loadPage(url, $target.hasClass("no-transition"));
+       /**
+       * modified by xiaohelong 20151214 
+       * the old command:
+       * router.loadPage(url, $target.hasClass("no-transition"));
+       */
+      router.loadPage(url, $target.hasClass("no-transition"),$target);
     })
   });
 }(Zepto);
